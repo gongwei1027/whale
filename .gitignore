@@ -1,0 +1,8 @@
+*.txt
+
+
+.idea/
+.idea/misc.xml
+.idea/modules.xml
+.idea/whale.iml
+.idea/workspace.xml
