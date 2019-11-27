@@ -4,6 +4,8 @@ from utils import *
 import torch
 import torch.nn as nn
 from textcnn import Model
+import math
+
 
 class GraphConvolution(nn.Module):
     """
@@ -42,17 +44,16 @@ class GraphConvolution(nn.Module):
 
 
 class GCNResnet(nn.Module):
-    def __init__(self, model, num_classes, in_channel=300, t=0, adj_file=None):
+    def __init__(self, model, filename, in_channel=300):
         super(GCNResnet, self).__init__()
         self.features = model
-        self.num_classes = num_classes
         self.pooling = nn.MaxPool2d(14, 14)
 
         self.gc1 = GraphConvolution(in_channel, 1024)
         self.gc2 = GraphConvolution(1024, 2048)
         self.relu = nn.LeakyReLU(0.2)
 
-        _adj = gen_A(num_classes, t, adj_file)
+        _adj = gen_A(filename)
         self.A = Parameter(torch.from_numpy(_adj).float())
         # image normalization
         self.image_normalization_mean = [0.485, 0.456, 0.406]
@@ -83,7 +84,7 @@ class GCNResnet(nn.Module):
 
 
 
-def gcn_resnet101(num_classes, t, config, pretrained=True, adj_file=None, in_channel=300):
+def gcn_resnet101(config, filename, pretrained=True, in_channel=300):
     model = Model(config).to(config.device)
     init_network(model)
-    return GCNResnet(model, num_classes, t=t, adj_file=adj_file, in_channel=in_channel)
+    return GCNResnet(model, filename, in_channel=in_channel)

@@ -241,6 +241,7 @@ class Engine(object):
             lr_list.append(param_group['lr'])
         return np.unique(lr_list)
 
+
 class MultiPlexNetworkEngine(Engine):
     def __init__(self, *args, **kwargs):
         super(MultiPlexNetworkEngine).__init__(*args, **kwargs)
@@ -251,6 +252,7 @@ class MultiPlexNetworkEngine(Engine):
     def on_start_epoch(self):
         Engine.on_start_epoch(self)
         # self.ap_meter.reset()
+
 
 class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
 
