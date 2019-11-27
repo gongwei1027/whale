@@ -44,10 +44,6 @@ def main_eclipse():
     embedding = '100d.txt'
     use_gpu = torch.cuda.is_available()
 
-    train_dataset = COCO2014(args.data, phase='train', inp_name='data/coco/coco_glove_word2vec.pkl')
-    val_dataset = COCO2014(args.data, phase='val', inp_name='data/coco/coco_glove_word2vec.pkl')
-    num_classes = 80
-
     config = Config(dataset, embedding, "eclipse")
     np.random.seed(1)
     torch.manual_seed(1)
@@ -63,7 +59,7 @@ def main_eclipse():
     time_dif = get_time_dif(start_time)
     print("Time usage:", time_dif)
 
-    model = gcn_resnet101(num_classes=num_classes, t=0.4, config=config, adj_file='data/coco/coco_adj.pkl')
+    model = gcn_resnet101(filename="eclipse", config=config, adj_file='data/coco/coco_adj.pkl')
 
     # define loss function (criterion)
     criterion = nn.MultiLabelSoftMarginLoss()

@@ -145,33 +145,14 @@ def get_time_dif(start_time):
     return timedelta(seconds=int(round(time_dif)))
 
 
-if __name__ == "__main__":
-    '''提取预训练词向量'''
-    # 下面的目录、文件名按需更改。
-    train_dir = "./THUCNews/data/eclipse_class.txt"
-    # vocab_dir = "./THUCNews/data/vocab.pkl"
-    vocab_dir = ""
-    # pretrain_dir = "./THUCNews/data/sgns.sogou.char"
-    pretrain_dir = "./THUCNews/data/100d"
-    emb_dim = 100
-    filename_trimmed_dir = "./THUCNews/data/embedding_eclipse.npz"
-    if os.path.exists(vocab_dir):
-        word_to_id = pkl.load(open(vocab_dir, 'rb'))
-    else:
-        tokenizer = lambda x: x.split(' ')  # 以词为单位构建词表(数据集中词之间以空格隔开)
-        # tokenizer = lambda x: [y for y in x]  # 以字为单位构建词表
-        word_to_id = build_vocab(train_dir, tokenizer=tokenizer, max_size=MAX_VOCAB_SIZE, min_freq=1)
-        pkl.dump(word_to_id, open(vocab_dir, 'wb'))
+def gen_A(filename):
+    cur_dir = os.getcwd()
+    filename_path = "{}/data/{}/{}.csv".format(cur_dir, filename, filename)
+    A = np.loadtxt(open(filename_path, "rb"), delimiter=",", skiprows=0)
+    return A
 
-    embeddings = np.random.rand(len(word_to_id), emb_dim)
-    f = open(pretrain_dir, "r", encoding='UTF-8')
-    for i, line in enumerate(f.readlines()):
-        # if i == 0:  # 若第一行是标题，则跳过
-        #     continue
-        lin = line.strip().split(" ")
-        if lin[0] in word_to_id:
-            idx = word_to_id[lin[0]]
-            emb = [float(x) for x in lin[1:101]]
-            embeddings[idx] = np.asarray(emb, dtype='float32')
-    f.close()
-    np.savez_compressed(filename_trimmed_dir, embeddings=embeddings)
+def gen_adj(A):
+    D = torch.pow(A.sum(1).float(), -0.5)
+    D = torch.diag(D)
+    adj = torch.matmul(torch.matmul(A, D).t(), D)
+    return adj
