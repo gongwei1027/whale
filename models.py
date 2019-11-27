@@ -83,7 +83,6 @@ class GCNResnet(nn.Module):
                 ]
 
 
-
 def gcn_resnet101(config, filename, pretrained=True, in_channel=300):
     model = Model(config).to(config.device)
     init_network(model)
