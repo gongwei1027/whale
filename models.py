@@ -47,7 +47,7 @@ class GCNResnet(nn.Module):
     def __init__(self, model, filename, in_channel=300):
         super(GCNResnet, self).__init__()
         self.features = model
-        self.pooling = nn.MaxPool2d(14, 14)
+        # self.pooling = nn.MaxPool2d(14, 14)
 
         self.gc1 = GraphConvolution(in_channel, 1024)
         self.gc2 = GraphConvolution(1024, 2048)
@@ -56,12 +56,12 @@ class GCNResnet(nn.Module):
         _adj = gen_A(filename)
         self.A = Parameter(torch.from_numpy(_adj).float())
         # image normalization
-        self.image_normalization_mean = [0.485, 0.456, 0.406]
-        self.image_normalization_std = [0.229, 0.224, 0.225]
+        # self.image_normalization_mean = [0.485, 0.456, 0.406]
+        # self.image_normalization_std = [0.229, 0.224, 0.225]
 
     def forward(self, feature, inp):
         feature = self.features(feature)
-        feature = self.pooling(feature)
+        # feature = self.pooling(feature)
         feature = feature.view(feature.size(0), -1)
 
 

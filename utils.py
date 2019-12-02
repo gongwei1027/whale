@@ -151,8 +151,16 @@ def gen_A(filename):
     A = np.loadtxt(open(filename_path, "rb"), delimiter=",", skiprows=0)
     return A
 
+
 def gen_adj(A):
     D = torch.pow(A.sum(1).float(), -0.5)
     D = torch.diag(D)
     adj = torch.matmul(torch.matmul(A, D).t(), D)
     return adj
+
+
+def get_inp_var(filename):
+    cur_dir = os.getcwd()
+    filename_path = "{}/data/{}/{}_emb_result_300.csv".format(cur_dir, filename, filename)
+    inp_var = np.loadtxt(open(filename_path, "rb"), delimiter=",", skiprows=0)
+    return inp_var

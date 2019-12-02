@@ -1,12 +1,9 @@
-import time
-import numpy as np
-
-import torch
 
 import torchnet as tnt
 import torch.backends.cudnn as cudnn
-from tqdm import tqdm
-import torch.nn as nn
+
+from utils import *
+
 
 class Engine(object):
     def __init__(self, worker=25, device_ids=None, epoch=0, start_epoch=0, max_epochs=50, *args, **kwargs):
@@ -59,9 +56,7 @@ class Engine(object):
         self.state('target')[self.state('target') == -1] = 0
 
         input = self.state('input')
-        self.set_state('feature', input[0])
-        self.set_state('out', input[1])
-        self.set_state('input', input[2])
+        self.set_state('feature', input)
 
     def on_end_batch(self, training, model, criterion, data_loader, optimizer=None, display=True):
 
@@ -256,10 +251,10 @@ class MultiPlexNetworkEngine(Engine):
 
 class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
 
-    def on_forward(self, training, model, criterion, data_loader, optimizer=None, display=True):
+    def on_forward(self, training, model, criterion, data_loader, filename="eclipse", optimizer=None, display=True):
         feature_var = torch.autograd.Variable(self.state('feature')).float()
         target_var = torch.autograd.Variable(self.state('target')).float()
-        inp_var = torch.autograd.Variable(self.state('input')).float().detach()  # one hot
+        inp_var = get_inp_var(filename)
         if not training:
             feature_var.volatile = True
             target_var.volatile = True
