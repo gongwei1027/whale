@@ -29,6 +29,7 @@ def init_network(model, method='xavier', exclude='embedding', seed=123):
                 pass
 
 def build_vocab(file_path, tokenizer, max_size, min_freq):
+    print(file_path)
     vocab_dic = {}
     with open(file_path, 'r', encoding='gbk') as f:
         for line in tqdm(f):
@@ -49,6 +50,8 @@ def build_dataset(config, ues_word):
         tokenizer = lambda x: x.split(' ')  # 以空格隔开，word-level
     else:
         tokenizer = lambda x: [y for y in x]  # char-level
+    print(config.train_path)
+    print(config.vocab_path)
     if os.path.exists(config.vocab_path):
         print("config.vocab_path"+str(config.vocab_path))
         vocab = pkl.load(open(config.vocab_path, 'rb'))
@@ -162,5 +165,13 @@ def gen_adj(A):
 def get_inp_var(filename):
     cur_dir = os.getcwd()
     filename_path = "{}/data/{}/{}_emb_result_300.csv".format(cur_dir, filename, filename)
-    inp_var = np.loadtxt(open(filename_path, "rb"), delimiter=",", skiprows=0)
+    print(filename_path)
+    # f = open(filename_path, "rb")
+    inp_var = np.loadtxt(filename_path, delimiter=",", skiprows=0)
+    inp_var = inp_var[inp_var[:, 0].argsort()]
+    inp_var = np.delete(inp_var, 0, axis=1)
     return inp_var
+
+
+# if __name__ == '__main__':
+#     print(get_inp_var("eclipse"))

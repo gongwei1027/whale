@@ -30,6 +30,8 @@ class GraphConvolution(nn.Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input, adj):
+        print(input.shape)
+        print(self.weight.shape)
         support = torch.matmul(input, self.weight)
         output = torch.matmul(adj, support)
         if self.bias is not None:
@@ -62,10 +64,9 @@ class GCNResnet(nn.Module):
     def forward(self, feature, inp):
         feature = self.features(feature)
         # feature = self.pooling(feature)
-        feature = feature.view(feature.size(0), -1)
+        # feature = feature.view(feature.size(0), -1)
 
 
-        inp = inp[0]
         adj = gen_adj(self.A).detach()
         x = self.gc1(inp, adj)
         x = self.relu(x)
@@ -73,6 +74,7 @@ class GCNResnet(nn.Module):
 
         x = x.transpose(0, 1)
         x = torch.matmul(feature, x)
+        print(x.shape)
         return x
 
     def get_config_optim(self, lr, lrp):

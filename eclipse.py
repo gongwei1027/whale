@@ -5,10 +5,6 @@ from textcnn import *
 from utils import build_dataset, build_iterator, get_time_dif
 
 parser = argparse.ArgumentParser(description='WILDCAT Training')
-parser.add_argument('data', metavar='DIR',
-                    help='path to dataset (e.g. data/')
-parser.add_argument('--image-size', '-i', default=448, type=int,
-                    metavar='N', help='image size (default: 224)')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=20, type=int, metavar='N',
@@ -40,8 +36,9 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
 def main_eclipse():
     global args, best_prec1, use_gpu
     args = parser.parse_args()
-    dataset = 'NetworkData/'
-    embedding = '100d.txt'
+    cur_dir = os.getcwd()
+    dataset = '{}/NetworkData/'.format(cur_dir)
+    embedding = 'random'
     use_gpu = torch.cuda.is_available()
 
     config = Config(dataset, embedding, "eclipse")
@@ -52,13 +49,13 @@ def main_eclipse():
 
     start_time = time.time()
     print("Loading data...")
-    vocab, train_data, dev_data, test_data = build_dataset(config, args.word)
+    vocab, train_data, dev_data, test_data = build_dataset(config, True)
     train_iter = build_iterator(train_data, config)
     dev_iter = build_iterator(dev_data, config)
     test_iter = build_iterator(test_data, config)
     time_dif = get_time_dif(start_time)
     print("Time usage:", time_dif)
-
+    config.n_vocab = len(vocab)
     model = gcn_resnet101(filename="eclipse", config=config)
 
     # define loss function (criterion)
@@ -70,8 +67,13 @@ def main_eclipse():
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
 
-    state = {'batch_size': args.batch_size, 'image_size': args.image_size, 'max_epochs': args.epochs,
-             'evaluate': args.evaluate, 'resume': args.resume}
+    state = {
+        'max_epochs': 20,
+        'evaluate': args.evaluate,
+        'resume': args.resume,
+        'worker': 25,
+        'epoch': 0,
+    }
     state['difficult_examples'] = True
     state['save_model_path'] = 'checkpoint/coco/'
     state['workers'] = args.workers

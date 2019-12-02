@@ -1,8 +1,13 @@
-
+import torch
+import time
+import torch.nn as nn
+import numpy as np
 import torchnet as tnt
 import torch.backends.cudnn as cudnn
-
-from utils import *
+from tqdm import tqdm
+from utils import (
+    get_inp_var
+)
 
 
 class Engine(object):
@@ -239,9 +244,9 @@ class Engine(object):
 
 class MultiPlexNetworkEngine(Engine):
     def __init__(self, *args, **kwargs):
-        super(MultiPlexNetworkEngine).__init__(*args, **kwargs)
-        if self.difficult_examples is None:
-            self.difficult_examples = False
+        super(MultiPlexNetworkEngine, self).__init__(*args, **kwargs)
+        # if self.difficult_examples is None:
+        #     self.difficult_examples = False
         # self.ap_meter = AveragePrecisionMeter(self.difficult_examples)
 
     def on_start_epoch(self):
@@ -251,10 +256,13 @@ class MultiPlexNetworkEngine(Engine):
 
 class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
 
-    def on_forward(self, training, model, criterion, data_loader, filename="eclipse", optimizer=None, display=True):
-        feature_var = torch.autograd.Variable(self.state('feature')).float()
-        target_var = torch.autograd.Variable(self.state('target')).float()
-        inp_var = get_inp_var(filename)
+    def on_forward(self, training, model, criterion, data_loader, optimizer=None, display=True):
+        # feature_var = torch.autograd.Variable(self.state('feature')).float()
+        feature_var = self.state('feature')
+        target_var = torch.autograd.Variable(self.state('target')).float().view(1, -1)
+        print(target_var.shape)
+        inp_var = get_inp_var("eclipse")
+        inp_var = torch.from_numpy(inp_var).float().detach()
         if not training:
             feature_var.volatile = True
             target_var.volatile = True
@@ -262,6 +270,8 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
 
         # compute output
         self.set_state('output', model(feature_var, inp_var))
+        # self.set_state('output', self.state('output').argmax(dim=-1).float())
+        print(type(self.state('output')), target_var, target_var.shape, self.state('output').shape)
         self.set_state('loss', criterion(self.state('output'), target_var))
 
         if training:

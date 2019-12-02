@@ -19,7 +19,7 @@ class Config(object):
         self.save_path = dataset + filename + '/saved_dict/' + self.model_name + '.ckpt'  # 模型训练结果
         self.log_path = dataset + filename + '/log/' + self.model_name
         self.embedding_pretrained = torch.tensor(
-            np.load(dataset + '/data/' + embedding)["embeddings"].astype('float32')) \
+            np.load(dataset + embedding)["embeddings"].astype('float32')) \
             if embedding != 'random' else None  # 预训练词向量 (先设置成random)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # 设备
 
@@ -50,7 +50,7 @@ class Model(nn.Module):
         self.convs = nn.ModuleList(
             [nn.Conv2d(1, config.num_filters, (k, config.embed)) for k in config.filter_sizes])
         self.dropout = nn.Dropout(config.dropout)
-        self.fc = nn.Linear(config.num_filters * len(config.filter_sizes), config.num_classes)
+        self.fc = nn.Linear(config.num_filters * len(config.filter_sizes), 2048)
 
     def conv_and_pool(self, x, conv):
         x = F.relu(conv(x)).squeeze(3)
@@ -63,4 +63,5 @@ class Model(nn.Module):
         out = torch.cat([self.conv_and_pool(out, conv) for conv in self.convs], 1)
         out = self.dropout(out)
         out = self.fc(out)
+        print(out.shape)
         return out
