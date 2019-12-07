@@ -63,18 +63,20 @@ class GCNResnet(nn.Module):
 
     def forward(self, feature, inp):
         feature = self.features(feature)
+        # print(feature, type(feature))
+
         # feature = self.pooling(feature)
         # feature = feature.view(feature.size(0), -1)
 
 
-        adj = gen_adj(self.A).detach()
-        x = self.gc1(inp, adj)
+        # adj = gen_adj(self.A).detach()
+        # print(adj)
+        x = self.gc1(inp, self.A)
         x = self.relu(x)
-        x = self.gc2(x, adj)
+        x = self.gc2(x, self.A)
 
         x = x.transpose(0, 1)
         x = torch.matmul(feature, x)
-        print(x.shape)
         return x
 
     def get_config_optim(self, lr, lrp):

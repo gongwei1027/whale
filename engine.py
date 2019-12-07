@@ -66,7 +66,10 @@ class Engine(object):
     def on_end_batch(self, training, model, criterion, data_loader, optimizer=None, display=True):
 
         # record loss
-        self.loss_batch = self.loss.data[0]
+        # print(self.loss, type(self.loss))
+        print(self.loss.cpu().data.item())
+        # exit(1)
+        self.loss_batch = self.loss.cpu().data.item()
         self.meter_loss.add(self.loss_batch)
 
         # if display and self.state['print_freq'] != 0 and self.state['iteration'] % self.state['print_freq'] == 0:
@@ -166,7 +169,7 @@ class Engine(object):
 
             # measure elapsed time
             self.set_state('batch_time_current', (time.time() - end))
-            self.state('batch_time').add(self.state('batch_time_current'))
+            self.batch_time.add(self.state('batch_time_current'))
             end = time.time()
             # measure accuracy
             self.on_end_batch(True, model, criterion, data_loader, optimizer)
@@ -259,7 +262,7 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
     def on_forward(self, training, model, criterion, data_loader, optimizer=None, display=True):
         # feature_var = torch.autograd.Variable(self.state('feature')).float()
         feature_var = self.state('feature')
-        target_var = torch.autograd.Variable(self.state('target')).float().view(1, -1)
+        target_var = torch.autograd.Variable(self.state('target')).float().view(1, -1).transpose(1, 0)
         print(target_var.shape)
         inp_var = get_inp_var("eclipse")
         inp_var = torch.from_numpy(inp_var).float().detach()
@@ -271,12 +274,14 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
         # compute output
         self.set_state('output', model(feature_var, inp_var))
         # self.set_state('output', self.state('output').argmax(dim=-1).float())
-        print(type(self.state('output')), target_var, target_var.shape, self.state('output').shape)
-        self.set_state('loss', criterion(self.state('output'), target_var))
+        padded = (torch.zeros((128, 608)) - torch.ones((128, 608))).cuda()
+        target_var = torch.cat((target_var, padded), 1)
+        # print(type(self.state('output')), target_var, target_var.shape, self.state('output').shape)
+        self.loss = criterion(self.state('output'), target_var)
 
         if training:
             optimizer.zero_grad()
-            self.state('loss').backward()
+            self.loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), max_norm=10.0)
             optimizer.step()
 
