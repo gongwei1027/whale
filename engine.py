@@ -262,8 +262,9 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
     def on_forward(self, training, model, criterion, data_loader, optimizer=None, display=True):
         # feature_var = torch.autograd.Variable(self.state('feature')).float()
         feature_var = self.state('feature')
+        # print(self.state('target'), type(self.state('target')))
+        target_var_cpu = self.state('target').view(1, -1).transpose(1, 0).cpu()
         target_var = torch.autograd.Variable(self.state('target')).float().view(1, -1).transpose(1, 0)
-        print(target_var.shape)
         inp_var = get_inp_var("eclipse")
         inp_var = torch.from_numpy(inp_var).float().detach()
         if not training:
@@ -273,11 +274,12 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
 
         # compute output
         self.set_state('output', model(feature_var, inp_var))
-        # self.set_state('output', self.state('output').argmax(dim=-1).float())
-        padded = (torch.zeros((128, 608)) - torch.ones((128, 608))).cuda()
-        target_var = torch.cat((target_var, padded), 1)
+        print(target_var.shape)
+        target_var_cpu = torch.zeros(target_var.cpu().shape[0], 609).scatter_(1, target_var_cpu, 1)
+        # print(target_var_cpu, type(target_var_cpu))
+        # target_var = torch.FloatTensor(target_var)
         # print(type(self.state('output')), target_var, target_var.shape, self.state('output').shape)
-        self.loss = criterion(self.state('output'), target_var)
+        self.loss = criterion(self.state('output').cpu(), target_var_cpu.cpu())
 
         if training:
             optimizer.zero_grad()
