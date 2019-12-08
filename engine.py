@@ -11,7 +11,7 @@ from utils import (
 
 
 class Engine(object):
-    def __init__(self, worker=25, device_ids=None, epoch=0, start_epoch=0, max_epochs=50, *args, **kwargs):
+    def __init__(self, worker=25, device_ids=None, epoch=0, start_epoch=0, max_epochs=10, *args, **kwargs):
         self.worker = worker
         self.use_gpu = torch.cuda.is_available()
         self.epoch = epoch
@@ -60,7 +60,7 @@ class Engine(object):
         self.state('target')[self.state('target') == 0] = 1
         self.state('target')[self.state('target') == -1] = 0
 
-        input = self.state('input')
+        input = self.state('input')[0]
         self.set_state('feature', input)
 
     def on_end_batch(self, training, model, criterion, data_loader, optimizer=None, display=True):
@@ -206,7 +206,7 @@ class Engine(object):
 
             # measure elapsed time
             self.set_state('batch_time_current', (time.time() - end))
-            self.state('batch_time').add(self.state('batch_time_current'))
+            self.batch_time.add(self.state('batch_time_current'))
             end = time.time()
             # measure accuracy
             self.on_end_batch(False, model, criterion, data_loader)
@@ -261,12 +261,15 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
 
     def on_forward(self, training, model, criterion, data_loader, optimizer=None, display=True):
         # feature_var = torch.autograd.Variable(self.state('feature')).float()
-        feature_var = self.state('feature')
+        # feature_var = self.state('feature')
+
+        feature_var = torch.autograd.Variable(self.state('feature'))
         # print(self.state('target'), type(self.state('target')))
         target_var_cpu = self.state('target').view(1, -1).transpose(1, 0).cpu()
         target_var = torch.autograd.Variable(self.state('target')).float().view(1, -1).transpose(1, 0)
         inp_var = get_inp_var("eclipse")
         inp_var = torch.from_numpy(inp_var).float().detach()
+        inp_var = torch.autograd.Variable(inp_var)
         if not training:
             feature_var.volatile = True
             target_var.volatile = True
@@ -274,7 +277,6 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
 
         # compute output
         self.set_state('output', model(feature_var, inp_var))
-        print(target_var.shape)
         target_var_cpu = torch.zeros(target_var.cpu().shape[0], 609).scatter_(1, target_var_cpu, 1)
         # print(target_var_cpu, type(target_var_cpu))
         # target_var = torch.FloatTensor(target_var)

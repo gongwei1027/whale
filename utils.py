@@ -58,7 +58,6 @@ def build_dataset(config, ues_word):
     else:
         vocab = build_vocab(config.train_path, tokenizer=tokenizer, max_size=MAX_VOCAB_SIZE, min_freq=1)
         pkl.dump(vocab, open(config.vocab_path, 'wb'))
-    print(f"Vocab size: {len(vocab)}")
 
     def load_dataset(path, pad_size=128):
         contents = []

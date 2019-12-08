@@ -30,8 +30,6 @@ class GraphConvolution(nn.Module):
             self.bias.data.uniform_(-stdv, stdv)
 
     def forward(self, input, adj):
-        print(input.shape)
-        print(self.weight.shape)
         support = torch.matmul(input, self.weight)
         output = torch.matmul(adj, support)
         if self.bias is not None:
