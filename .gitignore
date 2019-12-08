@@ -1,5 +1,8 @@
 *.txt
 *.pkl
+eclipse
+model_best.pth.tar
+
 NetworkData/eclipse/*
 __pycache__/
 .idea/

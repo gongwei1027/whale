@@ -1,17 +1,21 @@
 import torch
 import time
+import os
+import shutil
 import torch.nn as nn
 import numpy as np
 import torchnet as tnt
 import torch.backends.cudnn as cudnn
 from tqdm import tqdm
 from utils import (
-    get_inp_var
+    get_inp_var,
+    AveragePrecisionMeter
 )
 
 
 class Engine(object):
-    def __init__(self, worker=25, device_ids=None, epoch=0, start_epoch=0, max_epochs=10, *args, **kwargs):
+    def __init__(self, worker=25, device_ids=None, epoch=0, start_epoch=0,
+                 max_epochs=10, model_path=None, difficult_examples=None, *args, **kwargs):
         self.worker = worker
         self.use_gpu = torch.cuda.is_available()
         self.epoch = epoch
@@ -30,6 +34,10 @@ class Engine(object):
         self.loss_batch  = None
 
         self._state = {}
+
+        self.model_path = model_path or os.getcwd()
+
+        self.difficult_examples = difficult_examples
 
     def state(self, name):
         if name in self._state:
@@ -67,10 +75,11 @@ class Engine(object):
 
         # record loss
         # print(self.loss, type(self.loss))
-        print(self.loss.cpu().data.item())
+        # print(self.loss.cpu().data.item())
         # exit(1)
         self.loss_batch = self.loss.cpu().data.item()
         self.meter_loss.add(self.loss_batch)
+        self.state('ap_meter').add(self.state('output').data, self.state('target_gt'))
 
         # if display and self.state['print_freq'] != 0 and self.state['iteration'] % self.state['print_freq'] == 0:
         #     loss = self.state['meter_loss'].value()[0]
@@ -129,13 +138,12 @@ class Engine(object):
             is_best = prec1 > self.best_score
             self.best_score = max(prec1, self.best_score)
 
+            self.save_checkpoint({
+                'epoch': epoch + 1,
+                'state_dict': model.module.state_dict() if self.use_gpu else model.state_dict(),
+                'best_score': self.best_score,
+            }, is_best)
 
-            # self.save_checkpoint({
-            #     'epoch': epoch + 1,
-            #     'arch': self._state('arch'),
-            #     'state_dict': model.module.state_dict() if self.use_gpu else model.state_dict(),
-            #     'best_score': self.best_score,
-            # }, is_best)
 
             print(' *** best={best:.3f}'.format(best=self.best_score))
         return self.best_score
@@ -215,7 +223,18 @@ class Engine(object):
 
         return score
 
-    # def save_checkpoint(self, state, is_best, filename='checkpoint.pth.tar'):
+    def save_checkpoint(self, state, is_best, filename='checkpoint.pth.tar'):
+        if self.model_path:
+            if not os.path.exists(self.model_path):
+                os.makedirs(self.model_path)
+            filename = "{}/{}".format(self.model_path, "eclipse")
+        torch.save(state, filename)
+        if is_best:
+            filename_best = "{}/{}".format(self.model_path, 'model_best.pth.tar')
+            if os.path.exists(filename_best):
+                os.remove(filename_best)
+            shutil.copyfile(filename, filename_best)
+
     #     if self._state('save_model_path') is not None:
     #         filename_ = filename
     #         filename = os.path.join(self.state['save_model_path'], filename_)
@@ -248,13 +267,55 @@ class Engine(object):
 class MultiPlexNetworkEngine(Engine):
     def __init__(self, *args, **kwargs):
         super(MultiPlexNetworkEngine, self).__init__(*args, **kwargs)
-        # if self.difficult_examples is None:
-        #     self.difficult_examples = False
-        # self.ap_meter = AveragePrecisionMeter(self.difficult_examples)
+        if self.difficult_examples is None:
+            self.difficult_examples = False
+        self.set_state('ap_meter', AveragePrecisionMeter(self.difficult_examples))
+
 
     def on_start_epoch(self):
         Engine.on_start_epoch(self)
-        # self.ap_meter.reset()
+        self.state('ap_meter').reset()
+
+    def on_end_epoch(self, training, display=True):
+        map = 100 * self.state('ap_meter').value().mean()
+        loss = self.state('meter_loss').value()[0]
+        OP, OR, OF1, CP, CR, CF1 = self.state('ap_meter').overall()
+        OP_k, OR_k, OF1_k, CP_k, CR_k, CF1_k = self.state('ap_meter').overall_topk(3)
+        if display:
+            if training:
+                print('Epoch: [{0}]\t'
+                      'Loss {loss:.4f}\t'
+                      'mAP {map:.3f}'.format(self.state('epoch'), loss=loss, map=map))
+                print('OP: {OP:.4f}\t'
+                      'OR: {OR:.4f}\t'
+                      'OF1: {OF1:.4f}\t'
+                      'CP: {CP:.4f}\t'
+                      'CR: {CR:.4f}\t'
+                      'CF1: {CF1:.4f}'.format(OP=OP, OR=OR, OF1=OF1, CP=CP, CR=CR, CF1=CF1))
+            else:
+                print('Test: \t Loss {loss:.4f}\t mAP {map:.3f}'.format(loss=loss, map=map))
+                print('OP: {OP:.4f}\t'
+                      'OR: {OR:.4f}\t'
+                      'OF1: {OF1:.4f}\t'
+                      'CP: {CP:.4f}\t'
+                      'CR: {CR:.4f}\t'
+                      'CF1: {CF1:.4f}'.format(OP=OP, OR=OR, OF1=OF1, CP=CP, CR=CR, CF1=CF1))
+                print('OP_3: {OP:.4f}\t'
+                      'OR_3: {OR:.4f}\t'
+                      'OF1_3: {OF1:.4f}\t'
+                      'CP_3: {CP:.4f}\t'
+                      'CR_3: {CR:.4f}\t'
+                      'CF1_3: {CF1:.4f}'.format(OP=OP_k, OR=OR_k, OF1=OF1_k, CP=CP_k, CR=CR_k, CF1=CF1_k))
+
+        return map
+
+    # def on_end_batch(self, training, model, criterion, data_loader, optimizer=None, display=True):
+    #
+    #     Engine.on_end_batch(self, training, model, criterion, data_loader, optimizer, display=False)
+    #
+    #     # measure mAP
+    #     self.state['ap_meter'].add(self.state['output'].data, self.state['target_gt'])
+
 
 
 class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
