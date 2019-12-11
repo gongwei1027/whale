@@ -250,6 +250,7 @@ class AveragePrecisionMeter(object):
             return 0
         ap = torch.zeros(self.scores.size(1))
         rg = torch.arange(1, self.scores.size(0)).float()
+        # print(self.scores, self.targets)
         # compute average precision for each class
         for k in range(self.scores.size(1)):
             # sort scores
@@ -264,12 +265,13 @@ class AveragePrecisionMeter(object):
 
         # sort examples
         sorted, indices = torch.sort(output, dim=0, descending=True)
-
+        print("output, target: ", output, target)
         # Computes prec@i
         pos_count = 0.
         total_count = 0.
         precision_at_i = 0.
         for i in indices:
+            print(target[i])
             label = target[i]
             if difficult_examples and label == 0:
                 continue

@@ -40,6 +40,7 @@ def main_eclipse():
     dataset = '{}/NetworkData/'.format(cur_dir)
     embedding = 'random'
     use_gpu = torch.cuda.is_available()
+    # use_gpu = False
 
     config = Config(dataset, embedding, "eclipse")
     np.random.seed(1)
@@ -79,11 +80,15 @@ def main_eclipse():
     state['workers'] = args.workers
     state['epoch_step'] = args.epoch_step
     state['lr'] = args.lr
+    state['test'] = False
+    state['resume'] = os.path.abspath(os.path.dirname(__file__))+'/model_best.pth.tar'
     # state['device_ids'] = args.device_ids
     if args.evaluate:
         state['evaluate'] = True
     engine = GCNMultiPlexNetworkEngine(**state)
-    engine.learning(model, criterion, train_iter, dev_iter, optimizer)
+
+    engine.learning(model, criterion, train_iter, dev_iter, test_iter,optimizer)
+
 
 if __name__ == '__main__':
     main_eclipse()

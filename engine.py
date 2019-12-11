@@ -6,16 +6,17 @@ import torch.nn as nn
 import numpy as np
 import torchnet as tnt
 import torch.backends.cudnn as cudnn
+from sklearn import metrics
 from tqdm import tqdm
 from utils import (
-    get_inp_var,
-    AveragePrecisionMeter
+    get_inp_var
 )
 
 
 class Engine(object):
     def __init__(self, worker=25, device_ids=None, epoch=0, start_epoch=0,
                  max_epochs=10, model_path=None, difficult_examples=None, *args, **kwargs):
+        self.test = kwargs.get('test', False)
         self.worker = worker
         self.use_gpu = torch.cuda.is_available()
         self.epoch = epoch
@@ -25,6 +26,8 @@ class Engine(object):
         self.device_ids = device_ids
         # meters
         self.meter_loss = tnt.meter.AverageValueMeter()
+        # ap_meter
+        self.ap_meter = tnt.meter.AverageValueMeter()
         # time measure
         self.batch_time = tnt.meter.AverageValueMeter()
         self.data_time = tnt.meter.AverageValueMeter()
@@ -50,6 +53,7 @@ class Engine(object):
 
     def on_start_epoch(self):
         self.meter_loss.reset()
+        self.ap_meter.reset()
         self.batch_time.reset()
         self.data_time.reset()
 
@@ -79,7 +83,7 @@ class Engine(object):
         # exit(1)
         self.loss_batch = self.loss.cpu().data.item()
         self.meter_loss.add(self.loss_batch)
-        self.state('ap_meter').add(self.state('output').data, self.state('target_gt'))
+        self.ap_meter.add(self.state('batch_score'))
 
         # if display and self.state['print_freq'] != 0 and self.state['iteration'] % self.state['print_freq'] == 0:
         #     loss = self.state['meter_loss'].value()[0]
@@ -110,19 +114,26 @@ class Engine(object):
 
         self.best_score = 0
 
-    def learning(self, model, criterion, train_iter, dev_iter, optimizer=None):
+    def learning(self, model, criterion, train_iter, dev_iter, test_iter,optimizer=None):
         self.init_learning(model, criterion)
-
 
         if self.use_gpu:
             train_iter.pin_memory = True
             dev_iter.pin_memory = True
+            test_iter.pin_memory = True
             cudnn.benchmark = True
 
             model = torch.nn.DataParallel(model, device_ids=self.device_ids).cuda()
 
             criterion = criterion.cuda()
 
+        if self.test:
+            model_best_file = os.path.abspath(os.path.dirname(__file__)) + '/model_best.pth.tar'
+            checkpoint = torch.load(model_best_file)
+            model.load_state_dict(checkpoint['state_dict'])
+            model_best = torch.nn.DataParallel(model, device_ids=self.device_ids).cuda()
+            self.validate(test_iter, model_best, criterion)
+            return
 
         for epoch in range(self.start_epoch, self.max_epochs):
             self.epoch = epoch
@@ -135,15 +146,14 @@ class Engine(object):
             prec1 = self.validate(dev_iter, model, criterion)
 
             # remember best prec@1 and save checkpoint
-            is_best = prec1 > self.best_score
-            self.best_score = max(prec1, self.best_score)
+            is_best = prec1 < self.best_score
+            self.best_score = min(prec1, self.best_score)
 
             self.save_checkpoint({
                 'epoch': epoch + 1,
                 'state_dict': model.module.state_dict() if self.use_gpu else model.state_dict(),
                 'best_score': self.best_score,
             }, is_best)
-
 
             print(' *** best={best:.3f}'.format(best=self.best_score))
         return self.best_score
@@ -186,7 +196,6 @@ class Engine(object):
 
 
     def validate(self, data_loader, model, criterion):
-
         # switch to evaluate mode
         model.eval()
 
@@ -222,6 +231,11 @@ class Engine(object):
         score = self.on_end_epoch(False)
 
         return score
+
+    # def test(self, data_loader, model, criterion):
+    #
+    #     for i, (input, target) in enumerate(data_loader):
+
 
     def save_checkpoint(self, state, is_best, filename='checkpoint.pth.tar'):
         if self.model_path:
@@ -267,47 +281,47 @@ class Engine(object):
 class MultiPlexNetworkEngine(Engine):
     def __init__(self, *args, **kwargs):
         super(MultiPlexNetworkEngine, self).__init__(*args, **kwargs)
-        if self.difficult_examples is None:
-            self.difficult_examples = False
-        self.set_state('ap_meter', AveragePrecisionMeter(self.difficult_examples))
-
 
     def on_start_epoch(self):
         Engine.on_start_epoch(self)
         self.state('ap_meter').reset()
 
     def on_end_epoch(self, training, display=True):
-        map = 100 * self.state('ap_meter').value().mean()
         loss = self.state('meter_loss').value()[0]
-        OP, OR, OF1, CP, CR, CF1 = self.state('ap_meter').overall()
-        OP_k, OR_k, OF1_k, CP_k, CR_k, CF1_k = self.state('ap_meter').overall_topk(3)
-        if display:
-            if training:
-                print('Epoch: [{0}]\t'
-                      'Loss {loss:.4f}\t'
-                      'mAP {map:.3f}'.format(self.state('epoch'), loss=loss, map=map))
-                print('OP: {OP:.4f}\t'
-                      'OR: {OR:.4f}\t'
-                      'OF1: {OF1:.4f}\t'
-                      'CP: {CP:.4f}\t'
-                      'CR: {CR:.4f}\t'
-                      'CF1: {CF1:.4f}'.format(OP=OP, OR=OR, OF1=OF1, CP=CP, CR=CR, CF1=CF1))
-            else:
-                print('Test: \t Loss {loss:.4f}\t mAP {map:.3f}'.format(loss=loss, map=map))
-                print('OP: {OP:.4f}\t'
-                      'OR: {OR:.4f}\t'
-                      'OF1: {OF1:.4f}\t'
-                      'CP: {CP:.4f}\t'
-                      'CR: {CR:.4f}\t'
-                      'CF1: {CF1:.4f}'.format(OP=OP, OR=OR, OF1=OF1, CP=CP, CR=CR, CF1=CF1))
-                print('OP_3: {OP:.4f}\t'
-                      'OR_3: {OR:.4f}\t'
-                      'OF1_3: {OF1:.4f}\t'
-                      'CP_3: {CP:.4f}\t'
-                      'CR_3: {CR:.4f}\t'
-                      'CF1_3: {CF1:.4f}'.format(OP=OP_k, OR=OR_k, OF1=OF1_k, CP=CP_k, CR=CR_k, CF1=CF1_k))
-
-        return map
+        acc = self.ap_meter
+        print('Epoch: [{0}]\t'
+              'Loss {loss:.4f}\t'
+              'mAP {acc:.3f}'.format(self.state('epoch'), loss=loss, acc=acc))
+        return loss
+        # map = 100 * self.state('ap_meter').value().mean()
+        # loss = self.state('meter_loss').value()[0]
+        # OP, OR, OF1, CP, CR, CF1 = self.state('ap_meter').overall()
+        # OP_k, OR_k, OF1_k, CP_k, CR_k, CF1_k = self.state('ap_meter').overall_topk(3)
+        # if display:
+        #     if training:
+        #         print('Epoch: [{0}]\t'
+        #               'Loss {loss:.4f}\t'
+        #               'mAP {map:.3f}'.format(self.state('epoch'), loss=loss, map=map))
+        #         print('OP: {OP:.4f}\t'
+        #               'OR: {OR:.4f}\t'
+        #               'OF1: {OF1:.4f}\t'
+        #               'CP: {CP:.4f}\t'
+        #               'CR: {CR:.4f}\t'
+        #               'CF1: {CF1:.4f}'.format(OP=OP, OR=OR, OF1=OF1, CP=CP, CR=CR, CF1=CF1))
+        #     else:
+        #         print('Test: \t Loss {loss:.4f}\t mAP {map:.3f}'.format(loss=loss, map=map))
+        #         print('OP: {OP:.4f}\t'
+        #               'OR: {OR:.4f}\t'
+        #               'OF1: {OF1:.4f}\t'
+        #               'CP: {CP:.4f}\t'
+        #               'CR: {CR:.4f}\t'
+        #               'CF1: {CF1:.4f}'.format(OP=OP, OR=OR, OF1=OF1, CP=CP, CR=CR, CF1=CF1))
+        #         print('OP_3: {OP:.4f}\t'
+        #               'OR_3: {OR:.4f}\t'
+        #               'OF1_3: {OF1:.4f}\t'
+        #               'CP_3: {CP:.4f}\t'
+        #               'CR_3: {CR:.4f}\t'
+        #               'CF1_3: {CF1:.4f}'.format(OP=OP_k, OR=OR_k, OF1=OF1_k, CP=CP_k, CR=CR_k, CF1=CF1_k))
 
     # def on_end_batch(self, training, model, criterion, data_loader, optimizer=None, display=True):
     #
@@ -317,9 +331,7 @@ class MultiPlexNetworkEngine(Engine):
     #     self.state['ap_meter'].add(self.state['output'].data, self.state['target_gt'])
 
 
-
 class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
-
     def on_forward(self, training, model, criterion, data_loader, optimizer=None, display=True):
         # feature_var = torch.autograd.Variable(self.state('feature')).float()
         # feature_var = self.state('feature')
@@ -336,17 +348,25 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
             target_var.volatile = True
             inp_var.volatile = True
 
+            true = self.state('target').data.cpu()
+
+
         # compute output
-        self.set_state('output', model(feature_var, inp_var))
+        gcn_output = model(feature_var, inp_var)
+        self.set_state('output', gcn_output)
         target_var_cpu = torch.zeros(target_var.cpu().shape[0], 609).scatter_(1, target_var_cpu, 1)
-        # print(target_var_cpu, type(target_var_cpu))
-        # target_var = torch.FloatTensor(target_var)
-        # print(type(self.state('output')), target_var, target_var.shape, self.state('output').shape)
         self.loss = criterion(self.state('output').cpu(), target_var_cpu.cpu())
+
+
 
         if training:
             optimizer.zero_grad()
             self.loss.backward()
             nn.utils.clip_grad_norm(model.parameters(), max_norm=10.0)
             optimizer.step()
+        else:
+
+            predic = torch.max(outputs.data, 1)[1].cpu()#outputs 是gcn
+            train_acc = metrics.accuracy_score(true, predic)
+            self.set_state('batch_score', train_acc)
 
