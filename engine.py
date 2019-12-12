@@ -123,16 +123,17 @@ class Engine(object):
             test_iter.pin_memory = True
             cudnn.benchmark = True
 
+            if self.test:
+                model_best_file = os.path.abspath(os.path.dirname(__file__)) + '/model_best.pth.tar'
+                checkpoint = torch.load(model_best_file)
+                model.load_state_dict(checkpoint['state_dict'])
             model = torch.nn.DataParallel(model, device_ids=self.device_ids).cuda()
 
             criterion = criterion.cuda()
 
+
         if self.test:
-            model_best_file = os.path.abspath(os.path.dirname(__file__)) + '/model_best.pth.tar'
-            checkpoint = torch.load(model_best_file)
-            model.load_state_dict(checkpoint['state_dict'])
-            model_best = torch.nn.DataParallel(model, device_ids=self.device_ids).cuda()
-            self.validate(test_iter, model_best, criterion)
+            self.validate(test_iter, model, criterion)
             return
 
         for epoch in range(self.start_epoch, self.max_epochs):
@@ -277,18 +278,19 @@ class Engine(object):
             lr_list.append(param_group['lr'])
         return np.unique(lr_list)
 
-
 class MultiPlexNetworkEngine(Engine):
     def __init__(self, *args, **kwargs):
         super(MultiPlexNetworkEngine, self).__init__(*args, **kwargs)
 
     def on_start_epoch(self):
         Engine.on_start_epoch(self)
-        self.state('ap_meter').reset()
+        self.ap_meter.reset()
 
     def on_end_epoch(self, training, display=True):
-        loss = self.state('meter_loss').value()[0]
-        acc = self.ap_meter
+        loss = self.meter_loss.value()[0]
+        acc = self.ap_meter.value()[0]
+        print(loss)
+        print(acc)
         print('Epoch: [{0}]\t'
               'Loss {loss:.4f}\t'
               'mAP {acc:.3f}'.format(self.state('epoch'), loss=loss, acc=acc))
@@ -365,8 +367,10 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
             nn.utils.clip_grad_norm(model.parameters(), max_norm=10.0)
             optimizer.step()
         else:
-
-            predic = torch.max(outputs.data, 1)[1].cpu()#outputs 是gcn
-            train_acc = metrics.accuracy_score(true, predic)
+            # k = 1
+            predic = gcn_output.detach().cpu().numpy().argmax(axis=1)
+            # outputs = gen_topk(gcn_output, k)
+            # predic = torch.max(outputs.data, 1)[1].cpu()#outputs 是gcn
+            train_acc = metrics.accuracy_score(true.numpy(), np.array(predic))
             self.set_state('batch_score', train_acc)
 

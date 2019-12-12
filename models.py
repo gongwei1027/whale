@@ -60,7 +60,7 @@ class GCNResnet(nn.Module):
         # self.image_normalization_std = [0.229, 0.224, 0.225]
 
     def forward(self, feature, inp):
-        feature = self.features(feature)
+        feature = self.features(feature) # [batch_size, 2048]
         # print(feature, type(feature))
 
         # feature = self.pooling(feature)
@@ -69,12 +69,12 @@ class GCNResnet(nn.Module):
 
         # adj = gen_adj(self.A).detach()
         # print(adj)
-        x = self.gc1(inp, self.A)
+        x = self.gc1(inp, self.A)  # [n_classes, 1024]
         x = self.relu(x)
-        x = self.gc2(x, self.A)
+        x = self.gc2(x, self.A)  # [n_classes, 2048]
 
-        x = x.transpose(0, 1)
-        x = torch.matmul(feature, x)
+        x = x.transpose(0, 1)  # [2048, n_classes]
+        x = torch.matmul(feature, x)  # [batch_size, n_classes]
         return x
 
     def get_config_optim(self, lr, lrp):
