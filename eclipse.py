@@ -67,9 +67,8 @@ def main_eclipse():
                                 lr=args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
-
     state = {
-        'max_epochs': 20,
+        'max_epochs': 200,
         'evaluate': args.evaluate,
         'resume': args.resume,
         'worker': 25,
@@ -80,7 +79,7 @@ def main_eclipse():
     state['workers'] = args.workers
     state['epoch_step'] = args.epoch_step
     state['lr'] = args.lr
-    state['test'] = True
+    state['test'] = False
     state['resume'] = os.path.abspath(os.path.dirname(__file__))+'/model_best.pth.tar'
     # state['device_ids'] = args.device_ids
     if args.evaluate:
@@ -88,7 +87,6 @@ def main_eclipse():
     engine = GCNMultiPlexNetworkEngine(**state)
 
     engine.learning(model, criterion, train_iter, dev_iter, test_iter,optimizer)
-    # engine.model_exist_test(model, criterion, test_iter, optimizer)
 
 if __name__ == '__main__':
     main_eclipse()
