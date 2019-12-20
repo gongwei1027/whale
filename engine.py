@@ -15,7 +15,7 @@ from utils import (
 
 class Engine(object):
     def __init__(self, worker=25, device_ids=None, epoch=0, start_epoch=0,
-                 max_epochs=10, model_path=None, difficult_examples=None, *args, **kwargs):
+                 max_epochs=10, model_path=None, difficult_examples=None, project=None, *args, **kwargs):
         self.test = kwargs.get('test', False)
         self.worker = worker
         self.use_gpu = torch.cuda.is_available()
@@ -41,6 +41,8 @@ class Engine(object):
         self.model_path = model_path or os.getcwd()
 
         self.difficult_examples = difficult_examples
+
+        self.project = project
 
     def state(self, name):
         if name in self._state:
@@ -125,7 +127,7 @@ class Engine(object):
             cudnn.benchmark = True
 
             if self.test:
-                model_best_file = os.path.abspath(os.path.dirname(__file__)) + '/model_best.pth.tar'
+                model_best_file = os.path.abspath(os.path.dirname(__file__)) + '/{}_model_best.pth.tar'.format(self.project)
                 checkpoint = torch.load(model_best_file)
                 model.load_state_dict(checkpoint['state_dict'])
             model = torch.nn.DataParallel(model, device_ids=self.device_ids).cuda()
@@ -241,10 +243,10 @@ class Engine(object):
         if self.model_path:
             if not os.path.exists(self.model_path):
                 os.makedirs(self.model_path)
-            filename = "{}/{}".format(self.model_path, "eclipse")
+            filename = "{}/{}".format(self.model_path, self.project)
         torch.save(state, filename)
         if is_best:
-            filename_best = "{}/{}".format(self.model_path, 'model_best.pth.tar')
+            filename_best = "{}/{}".format(self.model_path, 'model_best_{}.pth.tar'.format(self.project))
             if os.path.exists(filename_best):
                 os.remove(filename_best)
             shutil.copyfile(filename, filename_best)
@@ -341,7 +343,7 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
         # print(self.state('target'), type(self.state('target')))
         target_var_cpu = self.state('target').view(1, -1).transpose(1, 0).cpu()
         target_var = torch.autograd.Variable(self.state('target')).float().view(1, -1).transpose(1, 0)
-        inp_var = get_inp_var("eclipse")
+        inp_var = get_inp_var(self.project)
         inp_var = torch.from_numpy(inp_var).float().detach()
         inp_var = torch.autograd.Variable(inp_var)
         if not training:
@@ -354,7 +356,7 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
         # compute output
         gcn_output = model(feature_var, inp_var)
         self.set_state('output', gcn_output)
-        target_var_cpu = torch.zeros(target_var.cpu().shape[0], 609).scatter_(1, target_var_cpu, 1)
+        target_var_cpu = torch.zeros(target_var.cpu().shape[0], gcn_output.cpu().shape[1]).scatter_(1, target_var_cpu, 1)
         self.loss = criterion(self.state('output').cpu(), target_var_cpu.cpu())
 
         if training:

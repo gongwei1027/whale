@@ -58,10 +58,8 @@ class GCNResnet(nn.Module):
 
     def forward(self, feature, inp):
         feature = self.features(feature) # [batch_size, 2048]
-
         # feature = self.pooling(feature)
         # feature = feature.view(feature.size(0), -1)
-
         # adj = gen_adj(self.A).detach()
         # print(adj)
         x = self.gc1(inp, self.A)  # [n_classes, 1024]

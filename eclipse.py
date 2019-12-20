@@ -88,7 +88,8 @@ def main_eclipse():
     state['workers'] = args.workers
     state['epoch_step'] = args.epoch_step
     state['lr'] = args.lr
-    state['test'] = True
+    state['test'] = False
+    state['project'] = "eclipse"
     state['resume'] = os.path.abspath(os.path.dirname(__file__))+'/model_best.pth.tar'
     # state['dataname'] = dataname
     # state['device_ids'] = args.device_ids
