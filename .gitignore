@@ -2,6 +2,8 @@
 *.pkl
 eclipse
 model_best.pth.tar
+eclipse_model_best.pth.tar
+data/emb_result.rar
 
 NetworkData/eclipse/*
 __pycache__/

@@ -113,7 +113,7 @@ class Engine(object):
 
     def init_learning(self, model, criterion):
 
-        self.best_score = 10000000
+        self.best_score = 0
 
     def learning(self, model, criterion, train_iter, dev_iter, test_iter, optimizer=None):
         self.init_learning(model, criterion)
@@ -130,25 +130,25 @@ class Engine(object):
                 model.load_state_dict(checkpoint['state_dict'])
             model = torch.nn.DataParallel(model, device_ids=self.device_ids).cuda()
 
-            criterion = criterion.cuda()  # ? 损失函数
+            criterion = criterion.cuda()
 
         if self.test:
-            self.validate(test_iter, model, criterion)  # ?
+            self.validate(test_iter, model, criterion)
             return
 
         for epoch in range(self.start_epoch, self.max_epochs):
             self.epoch = epoch
             lr = self.adjust_learning_rate(optimizer)
-            # print('lr:', lr)
+            print('lr:', lr)
 
             # train for one epoch
             self.train(train_iter, model, criterion, optimizer, epoch)
             # evaluate on validation set
-            prec1 = self.validate(dev_iter, model, criterion)  # ?调用的哪个on_end_epoch
+            prec1 = self.validate(dev_iter, model, criterion)
 
             # remember best prec@1 and save checkpoint
-            is_best = prec1 < self.best_score
-            self.best_score = min(prec1, self.best_score)
+            is_best = prec1 > self.best_score
+            self.best_score = max(prec1, self.best_score)
 
             self.save_checkpoint({
                 'epoch': epoch + 1,
@@ -157,6 +157,7 @@ class Engine(object):
             }, is_best)
 
             print(' *** best={best:.3f}'.format(best=self.best_score))
+
         return self.best_score
 
     def train(self, data_loader, model, criterion, optimizer, epoch):
@@ -214,7 +215,7 @@ class Engine(object):
             self.set_state('input', input)
             self.set_state('target', target)
 
-            self.on_start_batch()  # ?
+            self.on_start_batch()
 
             if self.use_gpu:
                 self.set_state('target', self.state('target').cuda())
@@ -270,11 +271,13 @@ class Engine(object):
     def adjust_learning_rate(self, optimizer):
         """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
         lr_list = []
-        decay = 0.1 if sum(self.state('epoch') == np.array(self.epoch_step)) > 0 else 1.0
+        # decay = 0.1 if sum(self.epoch == np.array(self.epoch_step)) > 0 else 1.0
+        decay = 0.1 if self.epoch % 50 == 0 else 1.0
         for param_group in optimizer.param_groups:
             param_group['lr'] = param_group['lr'] * decay
             lr_list.append(param_group['lr'])
         return np.unique(lr_list)
+
 
 class MultiPlexNetworkEngine(Engine):
     def __init__(self, *args, **kwargs):
@@ -290,7 +293,7 @@ class MultiPlexNetworkEngine(Engine):
         print('Epoch: [{0}]\t'
               'Loss {loss:.4f}\t'
               'acc {acc:.3f}'.format(self.epoch, loss=loss, acc=acc))
-        return loss
+        return acc
         # map = 100 * self.state('ap_meter').value().mean()
         # loss = self.state('meter_loss').value()[0]
         # OP, OR, OF1, CP, CR, CF1 = self.state('ap_meter').overall()
@@ -362,16 +365,20 @@ class GCNMultiPlexNetworkEngine(MultiPlexNetworkEngine):
         else:
             predic = gcn_output.detach().cpu().numpy().argmax(axis=1)
             train_acc = metrics.accuracy_score(true.numpy(), np.array(predic))
+            self.set_state('batch_score', train_acc)
 
-            # k = 2  # 当k>=2时
-            # predic = np.argsort(gcn_output.detach().cpu().numpy(), axis=1)[:, :k]
-            # count = 0
+            # k = 5  # 当k>=2时
+            # predic = np.argsort(gcn_output.detach().cpu().numpy(), axis=1)[:, -k:]
+            # # print(predic)
+            # # exit(1)
+            # count = 0.0
             # for i, row in enumerate(predic):
-            #     if true[i] in row:
+            #     if true.numpy()[i] in row:
             #         count += 1
             # train_acc_k = count / len(true)
+            # self.set_state('batch_score', train_acc_k)
 
             # report = metrics.classification_report(true, predic, digits=4)
             # print(report)
-            self.set_state('batch_score', train_acc)
+
 

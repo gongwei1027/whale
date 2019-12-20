@@ -4,12 +4,14 @@ from models import *
 from textcnn import *
 from utils import build_dataset, build_iterator, get_time_dif
 
+# 每50次lr缩小到0.1
+
 parser = argparse.ArgumentParser(description='WILDCAT Training')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=20, type=int, metavar='N',
                     help='number of total epochs to run')
-parser.add_argument('--epoch_step', default=[30], type=int, nargs='+',
+parser.add_argument('--epoch_step', default=[100], type=int, nargs='+',
                     help='number of epochs to change learning rate')
 parser.add_argument('--device_ids', default=[0], type=int, nargs='+',
                     help='number of epochs to change learning rate')
@@ -17,7 +19,7 @@ parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('-b', '--batch-size', default=16, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
-parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--lrp', '--learning-rate-pretrained', default=0.1, type=float,
                     metavar='LR', help='learning rate for pre-trained layers')
@@ -35,6 +37,7 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
 
 def main_eclipse():
     global args, best_prec1, use_gpu
+    # dataname = "eclipse"
     args = parser.parse_args()
     cur_dir = os.getcwd()
     dataset = '{}/NetworkData/'.format(cur_dir)
@@ -59,14 +62,20 @@ def main_eclipse():
     config.n_vocab = len(vocab)
     model = gcn_resnet101(filename="eclipse", config=config)
 
+    print("=========================")
+    print(model.parameters)
+    print("=========================")
+
     # define loss function (criterion)
     criterion = nn.MultiLabelSoftMarginLoss()
 
     # define optimizer
-    optimizer = torch.optim.SGD(model.get_config_optim(args.lr, args.lrp),
-                                lr=args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+    # optimizer = torch.optim.SGD(model.get_config_optim(args.lr, args.lrp),
+    #                             lr=args.lr,
+    #                             momentum=args.momentum,
+    #                             weight_decay=args.weight_decay)
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=0)
+
     state = {
         'max_epochs': 200,
         'evaluate': args.evaluate,
@@ -79,14 +88,15 @@ def main_eclipse():
     state['workers'] = args.workers
     state['epoch_step'] = args.epoch_step
     state['lr'] = args.lr
-    state['test'] = False
+    state['test'] = True
     state['resume'] = os.path.abspath(os.path.dirname(__file__))+'/model_best.pth.tar'
+    # state['dataname'] = dataname
     # state['device_ids'] = args.device_ids
     if args.evaluate:
         state['evaluate'] = True
     engine = GCNMultiPlexNetworkEngine(**state)
 
-    engine.learning(model, criterion, train_iter, dev_iter, test_iter,optimizer)
+    engine.learning(model, criterion, train_iter, dev_iter, test_iter, optimizer)
 
 if __name__ == '__main__':
     main_eclipse()
