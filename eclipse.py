@@ -91,7 +91,6 @@ def main_eclipse():
     state['test'] = False
     state['project'] = "eclipse"
     state['resume'] = os.path.abspath(os.path.dirname(__file__))+'/model_best.pth.tar'
-    # state['dataname'] = dataname
     # state['device_ids'] = args.device_ids
     if args.evaluate:
         state['evaluate'] = True

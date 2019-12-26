@@ -127,7 +127,7 @@ class Engine(object):
             cudnn.benchmark = True
 
             if self.test:
-                model_best_file = os.path.abspath(os.path.dirname(__file__)) + '/{}_model_best.pth.tar'.format(self.project)
+                model_best_file = os.path.abspath(os.path.dirname(__file__)) + '/model_best_{}.pth.tar'.format(self.project)
                 checkpoint = torch.load(model_best_file)
                 model.load_state_dict(checkpoint['state_dict'])
             model = torch.nn.DataParallel(model, device_ids=self.device_ids).cuda()
